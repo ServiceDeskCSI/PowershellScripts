@@ -2,11 +2,11 @@ if (([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]:
     Write-Host("Running as administrator! Please run PowerShell as user.") -ForegroundColor Red;
 	Start-Sleep -Seconds 10 
 }
-$UserPS = Read-Host 'Enter Username:'
-$NewPC = Read-Host 'Enter New Computer Hostname:'
+$UserPS = Read-Host -Prompt 'Enter Username:'
+$NewPC = Read-Host -Prompt 'Enter New Computer Hostname:'
 
 New-Item -ItemType "directory" -Path "c:\users\$UserPS\desktop\CSI"
-
+write-host "Saving files to c:\users\$UserPS\desktop\CSI"
 <#
 Export Bookmarks 
 #>
@@ -27,7 +27,7 @@ if (!(Test-Path -Path $JSON_File_Path_Edge -PathType Leaf)) {
     #throw "Source-File Path $JSON_File_Path_Edge does not exist!" 
     write-output $EdgeError
 }else {
-write-output "Trying to export Edge Bookmarks" 
+write-output "Exporting Edge Bookmarks to CSI Folder" 
 # ---- HTML Header ----
 $BookmarksHTML_Header = @'
 <!DOCTYPE NETSCAPE-Bookmark-file-1>
@@ -109,7 +109,7 @@ if (!(Test-Path -Path $JSON_File_Path_Chrome -PathType Leaf)) {
     #throw "Source-File Path $JSON_File_Path_Chrome does not exist!" 
     write-output $ChromeError
 }else {
-write-output "Trying to export Chrome Bookmarks"
+write-output "Exporting Chrome Bookmarks to CSI Folder"
    $htmlHeader = @'
 <!DOCTYPE NETSCAPE-Bookmark-file-1>
 <!--This is an automatically generated file.
@@ -165,31 +165,38 @@ ForEach ($entry in $sections) {
 <#
 Export Drives and Printers 
 #>
-
+write-host "Saving Drives and Printers to CSI Folder"
 cmd /c wmic printer list brief > "c:\users\$UserPS\desktop\CSI\Printers.txt"
 cmd /c net use > "c:\users\$UserPS\desktop\CSI\Mapped_Drives.txt"
 Start-Sleep -Seconds 5 
 <#
 Move Files 
 #>
+write-host "Lets try moving files"
 if (Test-Path -Path c:\users\$UserPS\Desktop) {
-	write-host "Moving: Desktop Folder"
-	Move-Item –Path c:\users\$UserPS\Desktop -Destination \\$NewPC\C$\Users\$UserPS\Desktop -force
+	if (Test-Path -Path \\$NewPC\C$\Users\$UserPS\Desktop){
+		write-host "Moving: Desktop Folder"
+		Move-Item “Path c:\users\$UserPS\Desktop -Destination \\$NewPC\C$\Users\$UserPS\Desktop -force
+	}
 }
 
 if (Test-Path -Path c:\users\$UserPS\Documents) {
-	write-host "Moving: Documents Folder"
-	Move-Item –Path c:\users\$UserPS\Documents -Destination \\$NewPC\C$\Users\$UserPS\Documents -force
+	if (Test-Path -Path \\$NewPC\C$\Users\$UserPS\Documents){
+		write-host "Moving: Documents Folder"
+		Move-Item “Path c:\users\$UserPS\Documents -Destination \\$NewPC\C$\Users\$UserPS\Documents -force
+	}
+}
+
+
+if (Test-Path -Path c:\users\$UserPS\Links) {
+	if (Test-Path -Path \\$NewPC\C$\Users\$UserPS\Links){
+		write-host "Moving: Links Folder"
+		Move-Item “Path c:\users\$UserPS\Links -Destination \\$NewPC\C$\Users\$UserPS\Links -force
+	}
 }
 if (Test-Path -Path c:\users\$UserPS\Favorites) {
-	write-host "Moving: Favorites Folder"
-	Move-Item –Path c:\users\$UserPS\Favorites -Destination \\$NewPC\C$\Users\$UserPS\Favorites -force
-}
-if (Test-Path -Path c:\users\$UserPS\Links) {
-	write-host "Moving: Links Folder"
-	Move-Item –Path c:\users\$UserPS\Links -Destination \\$NewPC\C$\Users\$UserPS\Links -force
-}
-if (Test-Path -Path c:\users\$UserPS\OneDrive) {
-	write-host "Moving: OneDrive Folder"
-	Move-Item –Path c:\users\$UserPS\OneDrive -Destination \\$NewPC\C$\Users\$UserPS\OneDrive -force
+	if (Test-Path -Path \\$NewPC\C$\Users\$UserPS\Favorites){
+		write-host "Moving: Favorites Folder"
+		Move-Item “Path c:\users\$UserPS\Favorites -Destination \\$NewPC\C$\Users\$UserPS\Favorites -force
+	}
 }

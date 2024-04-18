@@ -1,14 +1,18 @@
-if (([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host("Running as administrator! Please run PowerShell as user.") -ForegroundColor Red;
-	Start-Sleep -Seconds 10 
-}
-$UserPS = Read-Host -Prompt 'Enter Username:'
-$NewPC = Read-Host -Prompt 'Enter New Computer Hostname:'
+<#if (([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Host("Running as administrator!") -ForegroundColor Red;
+	#Start-Sleep -Seconds 5
+}#>
+$UserPS = Read-Host 'Enter Username'
+$NewPC = Read-Host 'Enter New Computer Hostname'
 
+if (Test-Path -Path c:\users\$UserPS\desktop\CSI) {
+	write-host "Found CSI Folder on Desktop" 
+}
+else{
 New-Item -ItemType "directory" -Path "c:\users\$UserPS\desktop\CSI"
-write-host "Saving files to c:\users\$UserPS\desktop\CSI"
+}
 <#
-Export Bookmarks 
+!!!!! Export Bookmarks 
 #>
 
 # Path to EdgeChromium Bookmarks File and HTML Export
@@ -27,7 +31,7 @@ if (!(Test-Path -Path $JSON_File_Path_Edge -PathType Leaf)) {
     #throw "Source-File Path $JSON_File_Path_Edge does not exist!" 
     write-output $EdgeError
 }else {
-write-output "Exporting Edge Bookmarks to CSI Folder" 
+write-output "Trying to export Edge Bookmarks" 
 # ---- HTML Header ----
 $BookmarksHTML_Header = @'
 <!DOCTYPE NETSCAPE-Bookmark-file-1>
@@ -109,7 +113,7 @@ if (!(Test-Path -Path $JSON_File_Path_Chrome -PathType Leaf)) {
     #throw "Source-File Path $JSON_File_Path_Chrome does not exist!" 
     write-output $ChromeError
 }else {
-write-output "Exporting Chrome Bookmarks to CSI Folder"
+write-output "Trying to export Chrome Bookmarks"
    $htmlHeader = @'
 <!DOCTYPE NETSCAPE-Bookmark-file-1>
 <!--This is an automatically generated file.
@@ -163,40 +167,60 @@ ForEach ($entry in $sections) {
 }
 
 <#
-Export Drives and Printers 
+!!!!! Export Network Drives
 #>
-write-host "Saving Drives and Printers to CSI Folder"
-cmd /c wmic printer list brief > "c:\users\$UserPS\desktop\CSI\Printers.txt"
-cmd /c net use > "c:\users\$UserPS\desktop\CSI\Mapped_Drives.txt"
-Start-Sleep -Seconds 5 
+
+Start-Transcript -path c:\users\$UserPS\desktop\CSI\MappedDrives.txt -append
+# See if any drives were found
+if ( $Drives ) {
+    ForEach ( $Drive in $Drives ) {
+        # PSParentPath looks like this: Microsoft.PowerShell.Core\Registry::HKEY_USERS\S-1-5-21-##########-##########-##########-####\Network
+        $SID = ($Drive.PSParentPath -split '\\')[2]
+        [PSCustomObject]@{
+            # Use .NET to look up the username from the SID
+            Username            = ([System.Security.Principal.SecurityIdentifier]"$SID").Translate([System.Security.Principal.NTAccount])
+            DriveLetter         = $Drive.PSChildName
+            RemotePath          = $Drive.RemotePath
+            # The username specified when you use "Connect using different credentials".
+            # For some reason, this is frequently "0" when you don't use this option. I remove the "0" to keep the results consistent.
+            ConnectWithUsername = $Drive.UserName -replace '^0$', $null
+            SID                 = $SID
+        }
+
+    }
+
+} else {
+    Write-host "No mapped drives were found"
+}
+Stop-Transcript
+
+<#
+!!!!! Export Printers
+#>
+
+Start-Transcript -path c:\users\$UserPS\desktop\CSI\Printers.txt -append
+$hostAddresses = @{}
+Get-WmiObject Win32_TCPIPPrinterPort | ForEach-Object {
+  $hostAddresses.Add($_.Name, $_.HostAddress)
+}
+
+Get-WmiObject Win32_Printer | ForEach-Object {
+  New-Object PSObject -Property @{
+    "Name" = $_.Name
+    "DriverName" = $_.DriverName
+    "Status" = $_.Status
+    "HostAddress" = $hostAddresses[$_.PortName]
+    
+  }
+ }
+Stop-Transcript
+
 <#
 Move Files 
-#>
-write-host "Lets try moving files"
-if (Test-Path -Path c:\users\$UserPS\Desktop) {
-	if (Test-Path -Path \\$NewPC\C$\Users\$UserPS\Desktop){
-		write-host "Moving: Desktop Folder"
-		Move-Item “Path c:\users\$UserPS\Desktop -Destination \\$NewPC\C$\Users\$UserPS\Desktop -force
-	}
-}
 
-if (Test-Path -Path c:\users\$UserPS\Documents) {
-	if (Test-Path -Path \\$NewPC\C$\Users\$UserPS\Documents){
-		write-host "Moving: Documents Folder"
-		Move-Item “Path c:\users\$UserPS\Documents -Destination \\$NewPC\C$\Users\$UserPS\Documents -force
-	}
-}
-
-
-if (Test-Path -Path c:\users\$UserPS\Links) {
-	if (Test-Path -Path \\$NewPC\C$\Users\$UserPS\Links){
-		write-host "Moving: Links Folder"
-		Move-Item “Path c:\users\$UserPS\Links -Destination \\$NewPC\C$\Users\$UserPS\Links -force
-	}
-}
-if (Test-Path -Path c:\users\$UserPS\Favorites) {
-	if (Test-Path -Path \\$NewPC\C$\Users\$UserPS\Favorites){
-		write-host "Moving: Favorites Folder"
-		Move-Item “Path c:\users\$UserPS\Favorites -Destination \\$NewPC\C$\Users\$UserPS\Favorites -force
-	}
-}
+if(Test-Path -Path c:\users\$UserPS\Desktop){
+       if (Test-Path -Path \\$NewPC\C$\Users\$UserPS\Desktop){
+	        write-host "Moving: Desktop Folder"
+	        Move-Item “Path c:\users\$UserPS\Desktop" -Destination \\$NewPC\C$\Users\$UserPS\Desktop -Force -Recurse -Verbose
+	   }
+}#>
